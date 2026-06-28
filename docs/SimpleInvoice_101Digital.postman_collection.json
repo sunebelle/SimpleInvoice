@@ -1,0 +1,210 @@
+{
+  "info": {
+    "name": "SimpleInvoice - 101Digital (Dev)",
+    "_postman_id": "b1e9c0a2-7f3d-4a2b-9c1e-101d51mp1e01",
+    "description": "101 Digital Web Engineer Assessment (ReactJS v2.2.4) - SimpleInvoice API flow.\n\nRun the requests top to bottom:\n1. Fetch App Access Token  -> saves {{accessToken}}\n2. Get User Profile         -> saves {{orgToken}} (memberships[0].token)\n3. Fetch Invoices           -> list / search / sort / filter / paginate\n4. Create Invoice           -> submits a single-line-item invoice\n\nTokens are extracted automatically by the test scripts, so you do not need to copy/paste them. Just hit Send in order.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "1. Fetch App Access Token",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status code is 200', function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "var json = pm.response.json();",
+              "if (json && json.access_token) {",
+              "    pm.collectionVariables.set('accessToken', json.access_token);",
+              "    console.log('Saved accessToken (expires in ' + json.expires_in + 's)');",
+              "    pm.test('access_token returned', function () {",
+              "        pm.expect(json.access_token).to.be.a('string').and.not.empty;",
+              "    });",
+              "} else {",
+              "    console.error('No access_token in response:', JSON.stringify(json));",
+              "}"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/x-www-form-urlencoded"
+          }
+        ],
+        "body": {
+          "mode": "urlencoded",
+          "urlencoded": [
+            { "key": "client_id", "value": "{{clientId}}", "type": "text" },
+            { "key": "client_secret", "value": "{{clientSecret}}", "type": "text" },
+            { "key": "grant_type", "value": "password", "type": "text" },
+            { "key": "scope", "value": "openid", "type": "text" },
+            { "key": "username", "value": "{{username}}", "type": "text" },
+            { "key": "password", "value": "{{password}}", "type": "text" }
+          ]
+        },
+        "url": {
+          "raw": "{{authBaseUrl}}/t/101digital.core/oauth2/token",
+          "host": ["{{authBaseUrl}}"],
+          "path": ["t", "101digital.core", "oauth2", "token"]
+        },
+        "description": "OAuth2 password grant against the identity server. Returns access_token used as Bearer token for all subsequent calls."
+      }
+    },
+    {
+      "name": "2. Get User Profile (org-token)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status code is 200', function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "var json = pm.response.json();",
+              "var data = json && json.data ? json.data : json;",
+              "var memberships = data ? data.memberships : null;",
+              "",
+              "if (memberships && memberships.length > 0 && memberships[0].token) {",
+              "    pm.collectionVariables.set('orgToken', memberships[0].token);",
+              "    if (memberships[0].organisationId) {",
+              "        pm.collectionVariables.set('organisationId', memberships[0].organisationId);",
+              "    }",
+              "    console.log('Saved orgToken from memberships[0].token');",
+              "    pm.test('org-token extracted', function () {",
+              "        pm.expect(memberships[0].token).to.be.a('string').and.not.empty;",
+              "    });",
+              "} else {",
+              "    console.error('No memberships[0].token in response:', JSON.stringify(json));",
+              "}"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "url": {
+          "raw": "{{apiBaseUrl}}/membership-service/1.0.0/users/me",
+          "host": ["{{apiBaseUrl}}"],
+          "path": ["membership-service", "1.0.0", "users", "me"]
+        },
+        "description": "Returns the logged-in user profile. The org-token is read from memberships[0].token and saved to {{orgToken}}."
+      }
+    },
+    {
+      "name": "3. Fetch Invoices (list / search / sort / filter / paginate)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status code is 200', function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "console.log(pm.response.text());"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+          { "key": "org-token", "value": "{{orgToken}}" }
+        ],
+        "url": {
+          "raw": "{{apiBaseUrl}}/invoice-service/1.0.0/invoices?sortBy=CREATED_DATE&ordering=DESCENDING&pageNum=1&pageSize=10",
+          "host": ["{{apiBaseUrl}}"],
+          "path": ["invoice-service", "1.0.0", "invoices"],
+          "query": [
+            { "key": "sortBy", "value": "CREATED_DATE", "description": "e.g. CREATED_DATE" },
+            { "key": "ordering", "value": "DESCENDING", "description": "ASCENDING or DESCENDING" },
+            { "key": "pageNum", "value": "1", "description": "page number, starts at 1" },
+            { "key": "pageSize", "value": "10", "description": "records per page" },
+            { "key": "keyword", "value": "", "description": "search by invoiceNumber e.g. IV1649318870503", "disabled": true },
+            { "key": "status", "value": "", "description": "filter e.g. Paid", "disabled": true },
+            { "key": "fromDate", "value": "", "description": "YYYY-MM-dd", "disabled": true },
+            { "key": "toDate", "value": "", "description": "YYYY-MM-dd", "disabled": true }
+          ]
+        },
+        "description": "Lists invoices. Enable the disabled query params (keyword/status/fromDate/toDate) to test search and filtering."
+      }
+    },
+    {
+      "name": "4. Create Invoice",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "// Generate a unique invoice number / reference each run to avoid duplicates",
+              "var ts = Date.now();",
+              "pm.collectionVariables.set('invoiceNumber', 'INV' + ts);",
+              "pm.collectionVariables.set('invoiceReference', '#' + ts);"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status code is 2xx', function () {",
+              "    pm.expect(pm.response.code).to.be.oneOf([200, 201]);",
+              "});",
+              "console.log(pm.response.text());"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+          { "key": "org-token", "value": "{{orgToken}}" },
+          { "key": "Operation-Mode", "value": "SYNC" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"invoices\": [\n        {\n            \"bankAccount\": {\n                \"bankId\": \"\",\n                \"sortCode\": \"09-01-01\",\n                \"accountNumber\": \"12345678\",\n                \"accountName\": \"John Terry\"\n            },\n            \"customer\": {\n                \"firstName\": \"Nguyen\",\n                \"lastName\": \"Dung 2\",\n                \"contact\": {\n                    \"email\": \"nguyendung2@101digital.io\",\n                    \"mobileNumber\": \"+6597594971\"\n                },\n                \"addresses\": [\n                    {\n                        \"premise\": \"CT11\",\n                        \"countryCode\": \"VN\",\n                        \"postcode\": \"1000\",\n                        \"county\": \"hoangmai\",\n                        \"city\": \"hanoi\",\n                        \"addressType\": \"BILLING\"\n                    }\n                ]\n            },\n            \"documents\": [\n                {\n                    \"documentId\": \"96ea7d60-89ed-4c3b-811c-d2c61f5feab2\",\n                    \"documentName\": \"Bill\",\n                    \"documentUrl\": \"http://url.com/#123\"\n                }\n            ],\n            \"invoiceReference\": \"{{invoiceReference}}\",\n            \"invoiceNumber\": \"{{invoiceNumber}}\",\n            \"currency\": \"GBP\",\n            \"invoiceDate\": \"2021-05-27\",\n            \"dueDate\": \"2021-06-04\",\n            \"description\": \"Invoice is issued to Akila Jayasinghe\",\n            \"customFields\": [\n                {\n                    \"key\": \"invoiceCustomField\",\n                    \"value\": \"value\"\n                }\n            ],\n            \"extensions\": [\n                {\n                    \"addDeduct\": \"ADD\",\n                    \"value\": 10,\n                    \"type\": \"PERCENTAGE\",\n                    \"name\": \"tax\"\n                },\n                {\n                    \"addDeduct\": \"DEDUCT\",\n                    \"type\": \"FIXED_VALUE\",\n                    \"value\": 10.00,\n                    \"name\": \"discount\"\n                }\n            ],\n            \"items\": [\n                {\n                    \"itemReference\": \"itemRef\",\n                    \"description\": \"Honda RC150\",\n                    \"quantity\": 1,\n                    \"rate\": 1000,\n                    \"itemName\": \"Honda Motor\",\n                    \"itemUOM\": \"KG\",\n                    \"customFields\": [\n                        {\n                            \"key\": \"taxiationAndDiscounts_Name\",\n                            \"value\": \"VAT\"\n                        }\n                    ],\n                    \"extensions\": [\n                        {\n                            \"addDeduct\": \"ADD\",\n                            \"value\": 10,\n                            \"type\": \"FIXED_VALUE\",\n                            \"name\": \"tax\"\n                        },\n                        {\n                            \"addDeduct\": \"DEDUCT\",\n                            \"value\": 10,\n                            \"type\": \"PERCENTAGE\",\n                            \"name\": \"tax\"\n                        }\n                    ]\n                }\n            ]\n        }\n    ]\n}"
+        },
+        "url": {
+          "raw": "{{apiBaseUrl}}/invoice-service/1.0.0/invoices",
+          "host": ["{{apiBaseUrl}}"],
+          "path": ["invoice-service", "1.0.0", "invoices"]
+        },
+        "description": "Creates a single invoice with one line item. invoiceNumber/invoiceReference are auto-generated unique values in the pre-request script so re-running won't collide."
+      }
+    }
+  ],
+  "variable": [
+    { "key": "authBaseUrl", "value": "https://is-wso2-dev.101digital.io", "type": "string" },
+    { "key": "apiBaseUrl", "value": "https://api-neobank-dev.101digital.io", "type": "string" },
+    { "key": "clientId", "value": "qlsGKsgR3Qt4M_oSAvRq2yChEpUa", "type": "string" },
+    { "key": "clientSecret", "value": "GE7sxz9a4J6bw9LyPxkr4syV6pdLiMvYu2o_fDfnWgUa", "type": "string" },
+    { "key": "username", "value": "94756921275", "type": "string" },
+    { "key": "password", "value": "Password@12345", "type": "string" },
+    { "key": "accessToken", "value": "", "type": "string" },
+    { "key": "orgToken", "value": "", "type": "string" },
+    { "key": "organisationId", "value": "", "type": "string" },
+    { "key": "invoiceNumber", "value": "", "type": "string" },
+    { "key": "invoiceReference", "value": "", "type": "string" }
+  ]
+}
