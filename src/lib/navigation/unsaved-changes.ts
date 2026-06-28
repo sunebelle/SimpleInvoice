@@ -33,21 +33,42 @@ export function leavePageViaHistoryBack(): void {
   }
 }
 
-/** Single entry for leave confirmation — clears blocking when user accepts. */
-export function confirmLeave(): boolean {
-  if (!isBlocking) return true;
-  if (isConfirming) return false;
+// ----- Async Custom Modal Confirmation -----
 
-  isConfirming = true;
-  const confirmed = window.confirm(UNSAVED_CHANGES_MESSAGE);
+type ConfirmResolver = (confirmed: boolean) => void;
+let pendingConfirm: ConfirmResolver | null = null;
+
+export function requestConfirmLeave(): Promise<boolean> {
+  return new Promise((resolve) => {
+    if (!isBlocking) {
+      resolve(true);
+      return;
+    }
+    if (isConfirming) {
+      resolve(false);
+      return;
+    }
+    
+    isConfirming = true;
+    pendingConfirm = resolve;
+    
+    // Dispatch a custom event to trigger the React modal
+    window.dispatchEvent(new CustomEvent("show-unsaved-changes-modal"));
+  });
+}
+
+export function resolveConfirmLeave(confirmed: boolean) {
+  if (pendingConfirm) {
+    pendingConfirm(confirmed);
+    pendingConfirm = null;
+  }
   isConfirming = false;
-
   if (confirmed) {
     isBlocking = false;
   }
-
-  return confirmed;
 }
+
+// ----- Helpers -----
 
 export function isInternalNavigationLink(anchor: HTMLAnchorElement): boolean {
   if (anchor.target === "_blank") return false;

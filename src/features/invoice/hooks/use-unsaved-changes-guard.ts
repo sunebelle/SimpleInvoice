@@ -1,11 +1,11 @@
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import {
-  confirmLeave,
   isInternalNavigationLink,
   isUnsavedChangesBlocking,
   leavePageViaHistoryBack,
   pushUnsavedHistoryTrap,
+  requestConfirmLeave,
   resetUnsavedHistoryTraps,
   setUnsavedChangesBlocking,
 } from "@/lib/navigation/unsaved-changes";
@@ -24,6 +24,8 @@ export function useUnsavedChangesGuard(enabled: boolean) {
   useEffect(() => {
     if (!enabled) return;
 
+    // For browser reloads/closes, we still have to use the native prompt.
+    // The browser requires a synchronous `preventDefault`.
     const onBeforeUnload = (event: BeforeUnloadEvent) => {
       if (!isUnsavedChangesBlocking()) return;
       event.preventDefault();
@@ -35,29 +37,34 @@ export function useUnsavedChangesGuard(enabled: boolean) {
       const anchor = (event.target as Element).closest("a");
       if (!anchor || !isInternalNavigationLink(anchor)) return;
 
-      if (!confirmLeave()) {
-        event.preventDefault();
-        event.stopPropagation();
-        return;
-      }
+      event.preventDefault();
+      event.stopPropagation();
+      const href = anchor.href;
 
-      resetUnsavedHistoryTraps();
+      requestConfirmLeave().then((confirmed) => {
+        if (confirmed) {
+          resetUnsavedHistoryTraps();
+          router.push(href);
+        }
+      });
     };
 
     const onPopState = () => {
       if (!isUnsavedChangesBlocking()) return;
 
-      if (!confirmLeave()) {
-        pushUnsavedHistoryTrap();
-        return;
-      }
+      // The popstate already fired, so the URL changed.
+      // We must trap it again while we wait for the user to confirm.
+      pushUnsavedHistoryTrap();
 
-      leavePageViaHistoryBack();
-      // history.go updates the URL but App Router may not re-render until synced
-      queueMicrotask(() => {
-        router.replace(
-          `${window.location.pathname}${window.location.search}${window.location.hash}`,
-        );
+      requestConfirmLeave().then((confirmed) => {
+        if (confirmed) {
+          leavePageViaHistoryBack();
+          queueMicrotask(() => {
+            router.replace(
+              `${window.location.pathname}${window.location.search}${window.location.hash}`,
+            );
+          });
+        }
       });
     };
 

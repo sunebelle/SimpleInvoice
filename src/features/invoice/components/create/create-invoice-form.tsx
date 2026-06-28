@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { type Control, Controller, useForm, useWatch } from "react-hook-form";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { FieldError } from "@/components/ui/field-error";
 import { Input, Textarea } from "@/components/ui/input";
@@ -72,8 +73,9 @@ export function CreateInvoiceForm({
     register,
     handleSubmit,
     control,
-    formState: { errors, isSubmitting, isDirty },
+    formState: { errors, isSubmitting, isDirty, isValid },
   } = useForm<CreateInvoiceFormData>({
+    mode: "onChange",
     resolver: zodResolver(createInvoiceSchema),
     defaultValues: initialValues ?? getCreateInvoiceDefaultValues(),
   });
@@ -85,6 +87,8 @@ export function CreateInvoiceForm({
   const onSubmit = async (data: CreateInvoiceFormData) => {
     setServerError("");
     setSuccess(false);
+    
+    const toastId = toast.loading("Creating invoice...");
 
     try {
       const res = await fetch("/api/invoices", {
@@ -96,6 +100,7 @@ export function CreateInvoiceForm({
       const result = await res.json();
 
       if (res.status === 401 && result.code === "SESSION_EXPIRED") {
+        toast.dismiss(toastId);
         router.push(`/login?reason=${SESSION_EXPIRED_REASON}`);
         return;
       }
@@ -105,16 +110,16 @@ export function CreateInvoiceForm({
       }
 
       setSuccess(true);
+      toast.success("Invoice has been created successfully!", { id: toastId });
       setTimeout(() => {
         router.push("/");
         router.refresh();
       }, 1500);
     } catch (err) {
       console.error(err);
-      setServerError(
-        (err as Error).message ||
-          "An error occurred while creating the invoice.",
-      );
+      const errorMessage = (err as Error).message || "An error occurred while creating the invoice.";
+      setServerError(errorMessage);
+      toast.error(errorMessage, { id: toastId });
     }
   };
 
@@ -141,18 +146,6 @@ export function CreateInvoiceForm({
         <div className="mb-6 rounded-lg bg-chart-2/10 border border-chart-2/30 p-4 text-sm text-chart-2">
           Duplicating invoice <strong>{duplicateSourceNumber}</strong>. Invoice
           number and dates have been updated automatically.
-        </div>
-      )}
-
-      {success && (
-        <div className="mb-6 rounded-lg bg-chart-1/10 border border-chart-1/30 p-4 text-sm text-chart-1">
-          Invoice has been created successfully! Redirecting you home...
-        </div>
-      )}
-
-      {serverError && (
-        <div className="mb-6 rounded-lg bg-destructive/10 border border-destructive/30 p-4 text-sm text-destructive">
-          {serverError}
         </div>
       )}
 
@@ -334,7 +327,7 @@ export function CreateInvoiceForm({
           </div>
         </section>
 
-        <section className={sectionClassName}>
+        {/* <section className={sectionClassName}>
           <h2 className={sectionTitleClassName}>
             <span className="h-1.5 w-1.5 rounded-full bg-primary" />
             Attachments
@@ -350,7 +343,7 @@ export function CreateInvoiceForm({
               />
             )}
           />
-        </section>
+        </section> */}
 
         <div className="flex items-center justify-end gap-4 border-t border-border pt-6">
           <Link
@@ -362,7 +355,7 @@ export function CreateInvoiceForm({
           <Button
             type="submit"
             className="px-6 py-2.5"
-            disabled={isSubmitting || success}
+            disabled={isSubmitting || success || !isValid}
           >
             {isSubmitting ? "Creating..." : "Create Invoice"}
           </Button>

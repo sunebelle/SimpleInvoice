@@ -5,7 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
 import { Button } from "@/components/ui/button";
 import { siteConfig } from "@/config/site";
-import { confirmLeave } from "@/lib/navigation/unsaved-changes";
+import { requestConfirmLeave } from "@/lib/navigation/unsaved-changes";
 
 interface NavbarProps {
   userName: string;
@@ -16,7 +16,8 @@ export function Navbar({ userName }: NavbarProps) {
   const router = useRouter();
 
   const handleLogout = async () => {
-    if (!confirmLeave()) return;
+    const canLeave = await requestConfirmLeave();
+    if (!canLeave) return;
 
     try {
       const res = await fetch("/api/auth/logout", { method: "POST" });
