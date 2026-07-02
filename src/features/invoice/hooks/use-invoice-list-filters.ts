@@ -2,7 +2,8 @@
 
 import { usePathname, useRouter } from "next/navigation";
 import type { SubmitEvent } from "react";
-import { useCallback, useEffect, useState, useTransition } from "react";
+import { useCallback, useEffect, useState, useTransition, useRef } from "react";
+import { useDebounce } from "@/hooks/use-debounce";
 import {
   DEFAULT_INVOICE_ORDERING,
   DEFAULT_INVOICE_SORT,
@@ -23,6 +24,9 @@ export function useInvoiceListFilters(filters: InvoiceListFilters) {
   const [searchInput, setSearchInput] = useState(filters.keyword);
   const [draftFromDate, setDraftFromDate] = useState(filters.fromDate);
   const [draftToDate, setDraftToDate] = useState(filters.toDate);
+  
+  const debouncedSearch = useDebounce(searchInput, 500);
+  const isInitialMount = useRef(true);
 
   useEffect(() => {
     setSearchInput(filters.keyword);
@@ -48,6 +52,17 @@ export function useInvoiceListFilters(filters: InvoiceListFilters) {
     },
     [filters, navigate],
   );
+
+  useEffect(() => {
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      return;
+    }
+    
+    if (debouncedSearch !== filters.keyword) {
+      patchFilters({ keyword: debouncedSearch.trim(), page: 1 });
+    }
+  }, [debouncedSearch, filters.keyword, patchFilters]);
 
   const handleSearchSubmit = useCallback(
     (e: SubmitEvent<HTMLFormElement>) => {
